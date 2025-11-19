@@ -52,11 +52,23 @@ function App() {
     }
   }
 
+  async function handleLogout() {
+    try {
+      setLoading(true)
+      const { error } = await supabase.auth.signOut()
+      if (error) throw error
+    } catch (error) {
+      console.error('Erreur de déconnexion:', error.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   // Écran de chargement (Spinner)
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-900">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600"></div>
+      <div className="min-h-screen flex items-center justify-center bg-[#1A237E]">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-pink-500"></div>
       </div>
     )
   }
@@ -67,35 +79,38 @@ function App() {
   }
 
   // Cas 2 : Connecté mais profil vide -> Onboarding
-  // On vérifie si le job_title est vide
   if (profile && (!profile.job_title || profile.job_title === '')) {
     return <Onboarding session={session} onComplete={() => fetchProfile(session.user.id)} />
   }
 
   // Cas 3 : Tout est prêt -> Le Dashboard
   return (
-    <div className="min-h-screen bg-gray-100 dark:bg-gray-900 pt-6 px-4 transition-colors duration-300">
-
-      {/* Barre de navigation simplifiée */}
-      <div className="flex justify-between items-center max-w-2xl mx-auto mb-6">
-        <div className="flex items-center space-x-2">
-          <h1 className="font-bold text-xl text-gray-900 dark:text-white tracking-tight">YouFastCom</h1>
-          <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-            Bêta
-          </span>
+    <div className="min-h-screen bg-[#1A237E] text-gray-900 font-sans selection:bg-pink-500 selection:text-white">
+      {/* Navbar Simplifiée */}
+      <nav className="bg-white/10 backdrop-blur-md border-b border-white/10 sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between h-16 items-center">
+            <div className="flex items-center gap-2">
+              <div className="bg-pink-500 p-2 rounded-lg shadow-lg shadow-pink-500/20">
+                <span className="text-white font-bold text-xl">YFC</span>
+              </div>
+              <span className="font-bold text-xl text-white tracking-tight">YouFastCom</span>
+            </div>
+            {session && (
+              <button
+                onClick={handleLogout}
+                className="text-sm text-blue-100 hover:text-white font-medium transition-colors bg-white/10 hover:bg-white/20 px-4 py-2 rounded-full"
+              >
+                Déconnexion
+              </button>
+            )}
+          </div>
         </div>
+      </nav>
 
-        <button
-          onClick={() => supabase.auth.signOut()}
-          className="text-sm text-red-500 hover:text-red-700 font-medium transition"
-        >
-          Déconnexion
-        </button>
-      </div>
-
-      {/* Le cœur de l'application */}
-      {/* Le cœur de l'application */}
-      <Dashboard session={session} profile={profile} onProfileUpdate={() => fetchProfile(session.user.id)} />
+      <main className="py-8">
+        <Dashboard session={session} profile={profile} onProfileUpdate={() => fetchProfile(session.user.id)} />
+      </main>
       <Toaster position="bottom-center" />
     </div>
   )

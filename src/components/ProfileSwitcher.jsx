@@ -91,10 +91,10 @@ export default function ProfileSwitcher({ session, currentProfile, onUpdate }) {
             {/* LE DÉCLENCHEUR (Bouton visible sur le Dashboard) */}
             <button
                 onClick={() => setIsOpen(true)}
-                className="group relative flex items-center gap-3 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border border-white/20 dark:border-gray-700/50 rounded-2xl px-5 py-2.5 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 active:shadow-md ml-2 overflow-hidden"
+                className="group relative flex items-center gap-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-2.5 shadow-lg hover:shadow-pink-500/20 transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 active:shadow-md ml-2 overflow-hidden"
             >
                 {/* Effet de brillance au survol */}
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
 
                 {/* Indicateur de statut */}
                 <div className="relative flex h-3 w-3">
@@ -103,17 +103,17 @@ export default function ProfileSwitcher({ session, currentProfile, onUpdate }) {
                 </div>
 
                 <div className="text-left flex flex-col">
-                    <span className="text-[10px] uppercase tracking-widest font-bold text-gray-400 dark:text-gray-500 group-hover:text-blue-500 transition-colors">
+                    <span className="text-[10px] uppercase tracking-widest font-bold text-blue-200 group-hover:text-white transition-colors">
                         Poste en tant que
                     </span>
-                    <span className="text-sm font-bold text-gray-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors leading-tight">
+                    <span className="text-sm font-bold text-white group-hover:text-pink-300 transition-colors leading-tight">
                         {currentProfile?.job_title || 'Configurer'}
                     </span>
                 </div>
 
                 {/* Chevron animé */}
                 <svg
-                    className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-transform duration-300 group-hover:rotate-180"
+                    className="w-4 h-4 text-blue-200 group-hover:text-white transition-transform duration-300 group-hover:rotate-180"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
