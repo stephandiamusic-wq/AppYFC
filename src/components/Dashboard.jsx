@@ -205,22 +205,22 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
               <span className="bg-pink-100 text-pink-600 p-2 rounded-lg">🌐</span>
               Réseaux
             </h3>
-            <div className="flex flex-wrap gap-2">
+            <div className="grid grid-cols-2 gap-3">
               {[
                 { id: 'linkedin', label: 'LinkedIn', color: 'bg-[#0077b5]' },
                 { id: 'facebook', label: 'Facebook', color: 'bg-[#1877f2]' },
                 { id: 'twitter', label: 'X (Twitter)', color: 'bg-black' },
-                { id: 'instagram', label: 'Insta', color: 'bg-pink-600' },
+                { id: 'instagram', label: 'Instagram', color: 'bg-pink-600' },
               ].map((net) => (
                 <button
                   key={net.id}
                   onClick={() => togglePlatform(net.id)}
-                  className={`px-4 py-2 rounded-full text-xs font-bold transition flex items-center border-2 ${platforms[net.id]
-                    ? `${net.color} text-white border-transparent shadow-md transform scale-105`
+                  className={`w-full px-4 py-3 rounded-xl text-sm font-bold transition flex items-center justify-center border-2 ${platforms[net.id]
+                    ? `${net.color} text-white border-transparent shadow-md transform scale-[1.02]`
                     : 'bg-gray-50 text-gray-400 border-gray-100 hover:border-gray-200'
                     }`}
                 >
-                  {platforms[net.id] && <span className="mr-1">✓</span>}
+                  {platforms[net.id] && <span className="mr-2">✓</span>}
                   {net.label}
                 </button>
               ))}
