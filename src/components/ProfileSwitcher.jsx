@@ -13,7 +13,14 @@ export default function ProfileSwitcher({ session, currentProfile, onUpdate }) {
 
     // Charger les identités à l'ouverture
     useEffect(() => {
-        if (isOpen) fetchIdentities()
+        if (isOpen) {
+            fetchIdentities()
+            // Si on n'a pas explicitement demandé la création, on s'assure qu'elle est fermée
+            // Mais si on vient du bouton "+", showCreate est déjà à true
+        } else {
+            // Reset quand on ferme
+            setShowCreate(false)
+        }
     }, [isOpen])
 
     const fetchIdentities = async () => {
@@ -89,38 +96,55 @@ export default function ProfileSwitcher({ session, currentProfile, onUpdate }) {
     return (
         <>
             {/* LE DÉCLENCHEUR (Bouton visible sur le Dashboard) */}
-            <button
-                onClick={() => setIsOpen(true)}
-                className="group relative flex items-center gap-3 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl px-5 py-2.5 shadow-lg hover:shadow-pink-500/20 transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 active:shadow-md ml-2 overflow-hidden"
-            >
-                {/* Effet de brillance au survol */}
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/10 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
+            {/* LE DÉCLENCHEUR (Barre d'outils) */}
+            <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-1 shadow-lg hover:shadow-pink-500/20 transition-all duration-300">
 
-                {/* Indicateur de statut */}
-                <div className="relative flex h-3 w-3">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-3 w-3 bg-gradient-to-br from-green-400 to-green-600 shadow-sm"></span>
-                </div>
-
-                <div className="text-left flex flex-col">
-                    <span className="text-[10px] uppercase tracking-widest font-bold text-blue-200 group-hover:text-white transition-colors">
-                        Poste en tant que
-                    </span>
-                    <span className="text-sm font-bold text-white group-hover:text-pink-300 transition-colors leading-tight">
-                        {currentProfile?.job_title || 'Configurer'}
-                    </span>
-                </div>
-
-                {/* Chevron animé */}
-                <svg
-                    className="w-4 h-4 text-blue-200 group-hover:text-white transition-transform duration-300 group-hover:rotate-180"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
+                {/* Bouton GAUCHE : Menu / Liste */}
+                <button
+                    onClick={() => { setShowCreate(false); setIsOpen(true); }}
+                    className="p-3 rounded-xl text-blue-200 hover:text-white hover:bg-white/10 transition"
+                    title="Gérer les profils"
                 >
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
-                </svg>
-            </button>
+                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
+                    </svg>
+                </button>
+
+                {/* Bouton CENTRAL : Profil Actuel */}
+                <button
+                    onClick={() => { setShowCreate(false); setIsOpen(true); }}
+                    className="flex flex-col items-start px-4 py-1 border-l border-r border-white/10 hover:bg-white/5 transition"
+                >
+                    <div className="flex items-center gap-2 mb-0.5">
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                        </span>
+                        <span className="text-[10px] uppercase tracking-widest font-bold text-blue-200">
+                            Poste en tant que
+                        </span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                        <span className="text-sm font-bold text-white leading-tight">
+                            {currentProfile?.job_title || 'Configurer'}
+                        </span>
+                        <svg className="w-3 h-3 text-blue-200" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                        </svg>
+                    </div>
+                </button>
+
+                {/* Bouton DROIT : Ajouter (+) */}
+                <button
+                    onClick={() => { setShowCreate(true); setIsOpen(true); }}
+                    className="p-3 rounded-xl text-blue-200 hover:text-white hover:bg-white/10 transition group"
+                    title="Ajouter un profil"
+                >
+                    <svg className="w-6 h-6 transform group-hover:rotate-90 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" />
+                    </svg>
+                </button>
+            </div>
 
             {/* LA MODALE (Fenêtre surgissante) */}
             {isOpen && (
