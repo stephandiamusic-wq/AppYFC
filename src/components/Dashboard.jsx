@@ -1,12 +1,14 @@
 import { useState } from 'react'
+import ProfileSwitcher from './ProfileSwitcher'
 
-export default function Dashboard({ session, profile }) {
+export default function Dashboard({ session, profile, onProfileUpdate }) {
   const [image, setImage] = useState(null)
   const [preview, setPreview] = useState(null)
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const [results, setResults] = useState(null)
   
+  // État pour les plateformes actives
   const [platforms, setPlatforms] = useState({
     linkedin: true,
     facebook: true,
@@ -14,20 +16,20 @@ export default function Dashboard({ session, profile }) {
     instagram: true
   })
 
+  // Vérifie si au moins une plateforme est cochée
   const isAnyPlatformSelected = Object.values(platforms).some(Boolean)
 
   const togglePlatform = (key) => {
     setPlatforms(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
-  // --- NOUVEAU : Fonction pour modifier le texte généré ---
+  // Fonction pour modifier le texte généré (Édition)
   const handleResultEdit = (platform, newText) => {
     setResults(prev => ({
       ...prev,
       [platform]: newText
     }))
   }
-  // -------------------------------------------------------
 
   const handleImageChange = (e) => {
     const file = e.target.files[0]
@@ -38,7 +40,7 @@ export default function Dashboard({ session, profile }) {
     }
   }
 
-  // Fonction de compression intelligente (conservée)
+  // Fonction de compression d'image (Optimisé pour Mobile)
   const compressImage = (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
@@ -48,7 +50,7 @@ export default function Dashboard({ session, profile }) {
         img.src = event.target.result
         img.onload = () => {
           const canvas = document.createElement('canvas')
-          const MAX_WIDTH = 800 
+          const MAX_WIDTH = 800 // Largeur max pour n8n/OpenAI
           const scaleSize = MAX_WIDTH / img.width
           const newWidth = (scaleSize < 1) ? MAX_WIDTH : img.width
           const newHeight = (scaleSize < 1) ? (img.height * scaleSize) : img.height
@@ -57,6 +59,8 @@ export default function Dashboard({ session, profile }) {
           canvas.height = newHeight
           const ctx = canvas.getContext('2d')
           ctx.drawImage(img, 0, 0, newWidth, newHeight)
+          
+          // Export en JPEG qualité 70%
           const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
           resolve(dataUrl)
         }
@@ -75,8 +79,10 @@ export default function Dashboard({ session, profile }) {
     setResults(null)
 
     try {
+      // 1. Compression de l'image
       const base64Image = await compressImage(image)
       
+      // 2. Envoi à n8n
       const response = await fetch(import.meta.env.VITE_N8N_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -89,12 +95,14 @@ export default function Dashboard({ session, profile }) {
         })
       })
 
+      // 3. Traitement de la réponse
       const result = await response.json()
       let content = result.data
 
+      // Nettoyage du JSON si reçu en string
       if (typeof content === 'string') {
         content = content.replace(/```json/g, '').replace(/```/g, '')
-        try { content = JSON.parse(content) } catch (e) { console.error(e) }
+        try { content = JSON.parse(content) } catch (e) { console.error("Erreur parsing JSON", e) }
       }
       
       setResults(content)
@@ -110,11 +118,21 @@ export default function Dashboard({ session, profile }) {
   return (
     <div className="w-full max-w-2xl mx-auto p-4 pb-20">
       
-      <div className="text-center mb-8">
+      {/* En-tête avec Switcher d'identité */}
+      <div className="text-center mb-8 relative z-10">
         <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Nouveau Post</h2>
-        <p className="text-gray-500 dark:text-gray-400">
-          Postez en tant que <span className="font-semibold text-blue-600">{profile?.job_title || '...'}</span>
-        </p>
+        <div className="flex justify-center items-center text-gray-500 dark:text-gray-400">
+          <span>Postez en tant que </span>
+          <span className="font-semibold text-blue-600 ml-1">{profile?.job_title || '...'}</span>
+          
+          {/* Composant pour changer de profil */}
+          <ProfileSwitcher 
+            session={session} 
+            currentProfile={profile} 
+            onUpdate={onProfileUpdate} 
+          />
+        </div>
+        <p className="text-xs text-gray-400 mt-1">{profile?.org_name}</p>
       </div>
 
       {/* Zone Photo */}
@@ -137,7 +155,7 @@ export default function Dashboard({ session, profile }) {
         )}
       </div>
 
-      {/* Description */}
+      {/* Description / Contexte */}
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 ml-1">
           Contexte (Optionnel)
@@ -165,7 +183,6 @@ export default function Dashboard({ session, profile }) {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          {/* LinkedIn */}
           <button 
             onClick={() => togglePlatform('linkedin')}
             className={`px-4 py-2 rounded-full text-sm font-medium transition border flex items-center space-x-2 ${platforms.linkedin ? 'bg-[#0077b5] text-white border-transparent shadow-md' : 'bg-white dark:bg-gray-800 text-gray-400 border-gray-300 dark:border-gray-600 grayscale opacity-60'}`}
@@ -173,7 +190,6 @@ export default function Dashboard({ session, profile }) {
             <span>LinkedIn</span>{platforms.linkedin && <span>✓</span>}
           </button>
 
-          {/* Facebook */}
           <button 
             onClick={() => togglePlatform('facebook')}
             className={`px-4 py-2 rounded-full text-sm font-medium transition border flex items-center space-x-2 ${platforms.facebook ? 'bg-[#1877f2] text-white border-transparent shadow-md' : 'bg-white dark:bg-gray-800 text-gray-400 border-gray-300 dark:border-gray-600 grayscale opacity-60'}`}
@@ -181,7 +197,6 @@ export default function Dashboard({ session, profile }) {
             <span>Facebook</span>{platforms.facebook && <span>✓</span>}
           </button>
 
-          {/* Twitter */}
           <button 
             onClick={() => togglePlatform('twitter')}
             className={`px-4 py-2 rounded-full text-sm font-medium transition border flex items-center space-x-2 ${platforms.twitter ? 'bg-black text-white border-transparent shadow-md' : 'bg-white dark:bg-gray-800 text-gray-400 border-gray-300 dark:border-gray-600 grayscale opacity-60'}`}
@@ -189,7 +204,6 @@ export default function Dashboard({ session, profile }) {
             <span>X (Twitter)</span>{platforms.twitter && <span>✓</span>}
           </button>
 
-          {/* Instagram */}
           <button 
             onClick={() => togglePlatform('instagram')}
             className={`px-4 py-2 rounded-full text-sm font-medium transition border flex items-center space-x-2 ${platforms.instagram ? 'bg-gradient-to-r from-purple-500 to-orange-500 text-white border-transparent shadow-md' : 'bg-white dark:bg-gray-800 text-gray-400 border-gray-300 dark:border-gray-600 grayscale opacity-60'}`}
@@ -244,15 +258,15 @@ export default function Dashboard({ session, profile }) {
         </button>
       </div>
 
-      {/* Chargement */}
+      {/* Indicateur de Chargement */}
       {loading && (
         <div className="text-center py-8 animate-pulse">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-300 font-medium">L'IA rédige vos posts...</p>
+          <p className="text-gray-600 dark:text-gray-300 font-medium">L'IA analyse votre image...</p>
         </div>
       )}
 
-      {/* Résultats (Maintenant Éditables !) */}
+      {/* Résultats Éditables */}
       {results && typeof results === 'object' && (
         <div className="space-y-8 animate-fade-in-up">
           <div className="flex items-center space-x-2 mb-4">
