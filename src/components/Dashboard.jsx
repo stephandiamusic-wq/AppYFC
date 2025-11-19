@@ -13,6 +13,9 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
   // État pour les boutons "Copié"
   const [copiedState, setCopiedState] = useState({})
 
+  // État pour savoir quel bouton "Publier" est en train de charger
+  const [publishingState, setPublishingState] = useState({})
+
   // État pour les plateformes
   const [platforms, setPlatforms] = useState({
     linkedin: true,
@@ -39,6 +42,52 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
     setCopiedState(prev => ({ ...prev, [platform]: true }))
     setTimeout(() => setCopiedState(prev => ({ ...prev, [platform]: false })), 2000)
   }
+
+  // --- NOUVELLE FONCTION DE PUBLICATION ---
+  const handlePublish = async (text, platform) => {
+    if (!confirm(`Voulez-vous vraiment publier ce message sur ${platform} maintenant ?`)) return
+
+    // Active le chargement pour CE bouton spécifique
+    setPublishingState(prev => ({ ...prev, [platform]: true }))
+    const toastId = toast.loading(`Publication sur ${platform}...`)
+
+    try {
+      // On compresse l'image à nouveau pour l'envoi (ou on pourrait stocker la version compressée)
+      let imageToSend = null
+      if (image) {
+        imageToSend = await compressImage(image)
+      }
+
+      // Envoi au Webhook de PUBLICATION (Attention : Nouvelle URL dans .env)
+      // Si vous n'avez pas encore la variable PUBLISH, utilisez l'ancienne pour tester
+      const webhookUrl = import.meta.env.VITE_N8N_PUBLISH_WEBHOOK_URL || import.meta.env.VITE_N8N_WEBHOOK_URL
+
+      const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'publish', // Pour dire à n8n "C'est une publi, pas une génération"
+          userId: session.user.id,
+          platform: platform,
+          content: text,
+          imageBase64: imageToSend
+        })
+      })
+
+      if (response.ok) {
+        toast.success(`Posté avec succès sur ${platform} !`, { id: toastId })
+      } else {
+        throw new Error("Erreur serveur")
+      }
+
+    } catch (error) {
+      console.error(error)
+      toast.error("Échec de la publication via n8n.", { id: toastId })
+    } finally {
+      setPublishingState(prev => ({ ...prev, [platform]: false }))
+    }
+  }
+  // ----------------------------------------
 
   const handleImageChange = (e) => {
     const file = e.target.files[0]
@@ -289,15 +338,27 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
                     <div className="flex items-center gap-2">
                       <span className="text-white font-bold text-lg capitalize">{key}</span>
                     </div>
-                    <button
-                      onClick={() => handleCopy(val, key)}
-                      className={`text-xs font-bold px-4 py-2 rounded-full transition shadow-lg ${copiedState[key]
-                        ? 'bg-green-500 text-white scale-105'
-                        : 'bg-white text-gray-900 hover:bg-gray-100'
-                        }`}
-                    >
-                      {copiedState[key] ? '✓ COPIÉ' : 'COPIER LE TEXTE'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => handleCopy(val, key)}
+                        className={`text-xs font-bold px-4 py-2 rounded-full transition shadow-lg ${copiedState[key]
+                          ? 'bg-green-500 text-white scale-105'
+                          : 'bg-white text-gray-900 hover:bg-gray-100'
+                          }`}
+                      >
+                        {copiedState[key] ? '✓ COPIÉ' : 'COPIER LE TEXTE'}
+                      </button>
+                      <button
+                        onClick={() => handlePublish(val, key)}
+                        disabled={publishingState[key]}
+                        className={`text-xs font-bold px-4 py-2 rounded-full transition shadow-lg border border-white/30 ${publishingState[key]
+                          ? 'bg-white/50 cursor-not-allowed'
+                          : 'bg-white text-black hover:bg-gray-100'
+                          }`}
+                      >
+                        {publishingState[key] ? '⏳ ENVOI...' : '🚀 PUBLIER'}
+                      </button>
+                    </div>
                   </div>
                   <div className="p-6 bg-gray-50">
                     <textarea
