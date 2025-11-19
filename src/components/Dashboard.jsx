@@ -3,8 +3,10 @@ import toast, { Toaster } from 'react-hot-toast'
 import ProfileSwitcher from './ProfileSwitcher'
 
 export default function Dashboard({ session, profile, onProfileUpdate }) {
-  const [image, setImage] = useState(null)
-  const [preview, setPreview] = useState(null)
+  // Modification : Gestion de plusieurs images
+  const [images, setImages] = useState([])
+  const [previews, setPreviews] = useState([])
+
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
   const [loadingStep, setLoadingStep] = useState('')
@@ -52,25 +54,26 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
     const toastId = toast.loading(`Publication sur ${platform}...`)
 
     try {
-      // On compresse l'image à nouveau pour l'envoi (ou on pourrait stocker la version compressée)
-      let imageToSend = null
-      if (image) {
-        imageToSend = await compressImage(image)
+      // Compression de toutes les images
+      let imagesToSend = []
+      if (images.length > 0) {
+        imagesToSend = await Promise.all(images.map(img => compressImage(img)))
       }
 
-      // Envoi au Webhook de PUBLICATION (Attention : Nouvelle URL dans .env)
-      // Si vous n'avez pas encore la variable PUBLISH, utilisez l'ancienne pour tester
+      // Envoi au Webhook de PUBLICATION
       const webhookUrl = import.meta.env.VITE_N8N_PUBLISH_WEBHOOK_URL || import.meta.env.VITE_N8N_WEBHOOK_URL
 
       const response = await fetch(webhookUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          action: 'publish', // Pour dire à n8n "C'est une publi, pas une génération"
+          action: 'publish',
           userId: session.user.id,
           platform: platform,
           content: text,
-          imageBase64: imageToSend
+          // Envoi du tableau d'images ET de la première image pour compatibilité
+          imagesBase64: imagesToSend,
+          imageBase64: imagesToSend[0] || null
         })
       })
 
@@ -90,13 +93,33 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
   // ----------------------------------------
 
   const handleImageChange = (e) => {
-    const file = e.target.files[0]
-    if (file) {
-      setImage(file)
-      setPreview(URL.createObjectURL(file))
-      setResults(null)
-      toast.success('Photo ajoutée !', { icon: '📸' })
+    const files = Array.from(e.target.files)
+    if (!files.length) return
+
+    if (images.length + files.length > 5) {
+      toast.error("Maximum 5 photos autorisées !")
+      return
     }
+
+    const newImages = [...images, ...files]
+    setImages(newImages)
+
+    const newPreviews = files.map(file => URL.createObjectURL(file))
+    setPreviews(prev => [...prev, ...newPreviews])
+
+    setResults(null)
+    toast.success(`${files.length} photo(s) ajoutée(s) !`, { icon: '📸' })
+  }
+
+  const removeImage = (index) => {
+    const newImages = images.filter((_, i) => i !== index)
+    const newPreviews = previews.filter((_, i) => i !== index)
+
+    // Nettoyage de l'URL objet pour éviter les fuites de mémoire
+    URL.revokeObjectURL(previews[index])
+
+    setImages(newImages)
+    setPreviews(newPreviews)
   }
 
   // Compression d'image optimisée pour mobile
@@ -127,7 +150,7 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
   }
 
   const handleGenerate = async (posture) => {
-    if (!image) return toast.error("Il faut d'abord une photo !")
+    if (images.length === 0) return toast.error("Il faut d'abord au moins une photo !")
     if (!isAnyPlatformSelected) return toast.error("Sélectionnez au moins un réseau !")
 
     const activePlatforms = Object.keys(platforms).filter(k => platforms[k])
@@ -136,8 +159,8 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
     setResults(null)
 
     try {
-      setLoadingStep("Compression de l'image...")
-      const base64Image = await compressImage(image)
+      setLoadingStep(`Compression de ${images.length} image(s)...`)
+      const base64Images = await Promise.all(images.map(img => compressImage(img)))
 
       setLoadingStep("Analyse de la scène...")
 
@@ -146,7 +169,9 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: session.user.id,
-          imageBase64: base64Image,
+          // Envoi du tableau d'images ET de la première image pour compatibilité
+          imagesBase64: base64Images,
+          imageBase64: base64Images[0],
           posture: posture,
           description: description,
           targetPlatforms: activePlatforms
@@ -195,35 +220,55 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Carte Photo */}
         <div className="bg-white rounded-3xl p-6 shadow-xl shadow-blue-900/20">
-          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2">
-            <span className="bg-blue-100 text-blue-600 p-2 rounded-lg">📸</span>
-            Votre visuel
+          <h3 className="text-lg font-bold text-gray-800 mb-4 flex items-center gap-2 justify-between">
+            <div className="flex items-center gap-2">
+              <span className="bg-blue-100 text-blue-600 p-2 rounded-lg">📸</span>
+              <span>Vos visuels</span>
+            </div>
+            <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded-full">{images.length}/5</span>
           </h3>
 
           <div className="transition-all duration-300">
-            {!preview ? (
+            {previews.length === 0 ? (
               <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-blue-200 rounded-2xl cursor-pointer bg-blue-50/50 hover:bg-blue-50 transition active:scale-95 group">
                 <div className="flex flex-col items-center justify-center pt-5 pb-6">
                   <div className="bg-white p-4 rounded-full shadow-md mb-3 group-hover:scale-110 transition">
                     <span className="text-3xl">➕</span>
                   </div>
-                  <p className="text-sm font-semibold text-blue-600">Ajouter une photo</p>
+                  <p className="text-sm font-semibold text-blue-600">Ajouter des photos</p>
+                  <p className="text-xs text-blue-400 mt-1">(Max 5)</p>
                 </div>
-                <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+                <input type="file" className="hidden" accept="image/*" multiple onChange={handleImageChange} />
               </label>
             ) : (
-              <div className="relative rounded-2xl overflow-hidden shadow-lg group">
-                <img src={preview} alt="Preview" className="w-full h-64 object-cover" />
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-4">
-                  <label className="cursor-pointer bg-white text-black px-4 py-2 rounded-full font-bold text-sm hover:bg-gray-100 transform hover:scale-105 transition shadow-lg">
-                    Changer
-                    <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
-                  </label>
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-3">
+                  {previews.map((src, index) => (
+                    <div key={index} className="relative group aspect-square rounded-xl overflow-hidden shadow-md border border-gray-100">
+                      <img src={src} alt={`Preview ${index}`} className="w-full h-full object-cover" />
+                      <button
+                        onClick={() => removeImage(index)}
+                        className="absolute top-2 right-2 bg-red-500 text-white w-6 h-6 rounded-full flex items-center justify-center shadow-lg opacity-0 group-hover:opacity-100 transition-all hover:scale-110"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  ))}
+
+                  {previews.length < 5 && (
+                    <label className="flex flex-col items-center justify-center aspect-square border-2 border-dashed border-blue-200 rounded-xl cursor-pointer bg-blue-50/50 hover:bg-blue-50 transition group">
+                      <span className="text-2xl text-blue-400 group-hover:scale-110 transition">➕</span>
+                      <input type="file" className="hidden" accept="image/*" multiple onChange={handleImageChange} />
+                    </label>
+                  )}
+                </div>
+
+                <div className="flex justify-end">
                   <button
-                    onClick={() => { setPreview(null); setImage(null); setResults(null); }}
-                    className="bg-red-500 text-white px-4 py-2 rounded-full font-bold text-sm hover:bg-red-600 transform hover:scale-105 transition shadow-lg"
+                    onClick={() => { setImages([]); setPreviews([]); setResults(null); }}
+                    className="text-red-500 text-xs font-bold hover:bg-red-50 px-3 py-1 rounded-full transition"
                   >
-                    Supprimer
+                    Tout effacer
                   </button>
                 </div>
               </div>
@@ -294,7 +339,7 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
             <button
               key={pos.id}
               onClick={() => handleGenerate(pos.id)}
-              disabled={loading || !image || !isAnyPlatformSelected}
+              disabled={loading || images.length === 0 || !isAnyPlatformSelected}
               className={`group relative border-2 border-gray-100 ${pos.color} p-4 rounded-2xl transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-left`}
             >
               <div className="flex flex-col gap-2">
