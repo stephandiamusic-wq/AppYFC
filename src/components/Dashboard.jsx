@@ -20,6 +20,15 @@ export default function Dashboard({ session, profile }) {
     setPlatforms(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
+  // --- NOUVEAU : Fonction pour modifier le texte généré ---
+  const handleResultEdit = (platform, newText) => {
+    setResults(prev => ({
+      ...prev,
+      [platform]: newText
+    }))
+  }
+  // -------------------------------------------------------
+
   const handleImageChange = (e) => {
     const file = e.target.files[0]
     if (file) {
@@ -29,7 +38,7 @@ export default function Dashboard({ session, profile }) {
     }
   }
 
-  // --- NOUVEAU : Fonction de compression intelligente ---
+  // Fonction de compression intelligente (conservée)
   const compressImage = (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
@@ -38,30 +47,23 @@ export default function Dashboard({ session, profile }) {
         const img = new Image()
         img.src = event.target.result
         img.onload = () => {
-          // On crée un canvas pour redimensionner
           const canvas = document.createElement('canvas')
-          const MAX_WIDTH = 800 // On limite la largeur à 800px (suffisant pour l'IA)
+          const MAX_WIDTH = 800 
           const scaleSize = MAX_WIDTH / img.width
-          
-          // Si l'image est plus petite que 800px, on garde la taille originale
           const newWidth = (scaleSize < 1) ? MAX_WIDTH : img.width
           const newHeight = (scaleSize < 1) ? (img.height * scaleSize) : img.height
 
           canvas.width = newWidth
           canvas.height = newHeight
-
           const ctx = canvas.getContext('2d')
           ctx.drawImage(img, 0, 0, newWidth, newHeight)
-
-          // On exporte en JPEG qualité 70% (très léger)
           const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
-          resolve(dataUrl) // C'est déjà du Base64
+          resolve(dataUrl)
         }
       }
       reader.onerror = (error) => reject(error)
     })
   }
-  // ----------------------------------------------------
 
   const handleGenerate = async (posture) => {
     if (!image) return alert("Veuillez d'abord choisir une image !")
@@ -73,7 +75,6 @@ export default function Dashboard({ session, profile }) {
     setResults(null)
 
     try {
-      // Utilisation de la nouvelle fonction de compression
       const base64Image = await compressImage(image)
       
       const response = await fetch(import.meta.env.VITE_N8N_WEBHOOK_URL, {
@@ -81,7 +82,7 @@ export default function Dashboard({ session, profile }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           userId: session.user.id,
-          imageBase64: base64Image, // On envoie l'image légère
+          imageBase64: base64Image,
           posture: posture,
           description: description,
           targetPlatforms: activePlatforms
@@ -150,7 +151,7 @@ export default function Dashboard({ session, profile }) {
         ></textarea>
       </div>
 
-      {/* Sélecteur de Plateformes + Avertissement */}
+      {/* Sélecteur de Plateformes */}
       <div className="mb-8">
         <div className="flex justify-between items-center mb-3 ml-1">
           <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
@@ -247,11 +248,11 @@ export default function Dashboard({ session, profile }) {
       {loading && (
         <div className="text-center py-8 animate-pulse">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-300 font-medium">L'IA analyse votre image...</p>
+          <p className="text-gray-600 dark:text-gray-300 font-medium">L'IA rédige vos posts...</p>
         </div>
       )}
 
-      {/* Résultats */}
+      {/* Résultats (Maintenant Éditables !) */}
       {results && typeof results === 'object' && (
         <div className="space-y-8 animate-fade-in-up">
           <div className="flex items-center space-x-2 mb-4">
@@ -263,9 +264,15 @@ export default function Dashboard({ session, profile }) {
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-700">
               <div className="bg-[#0077b5] px-4 py-2 flex justify-between items-center">
                 <span className="text-white font-bold text-sm">LinkedIn</span>
-                <button onClick={() => navigator.clipboard.writeText(results.linkedin)} className="text-white text-xs hover:underline opacity-80">Copier</button>
+                <button onClick={() => navigator.clipboard.writeText(results.linkedin)} className="text-white text-xs hover:underline opacity-90 font-medium">COPIER</button>
               </div>
-              <div className="p-6"><p className="text-gray-800 dark:text-gray-200 text-sm whitespace-pre-wrap leading-relaxed font-sans">{results.linkedin}</p></div>
+              <div className="p-4">
+                <textarea 
+                  value={results.linkedin}
+                  onChange={(e) => handleResultEdit('linkedin', e.target.value)}
+                  className="w-full h-48 p-2 bg-transparent text-gray-800 dark:text-gray-200 text-sm whitespace-pre-wrap leading-relaxed font-sans resize-y outline-none focus:ring-2 focus:ring-blue-500/50 rounded-md"
+                />
+              </div>
             </div>
           )}
 
@@ -273,9 +280,15 @@ export default function Dashboard({ session, profile }) {
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-700">
               <div className="bg-[#1877f2] px-4 py-2 flex justify-between items-center">
                 <span className="text-white font-bold text-sm">Facebook</span>
-                <button onClick={() => navigator.clipboard.writeText(results.facebook)} className="text-white text-xs hover:underline opacity-80">Copier</button>
+                <button onClick={() => navigator.clipboard.writeText(results.facebook)} className="text-white text-xs hover:underline opacity-90 font-medium">COPIER</button>
               </div>
-              <div className="p-6"><p className="text-gray-800 dark:text-gray-200 text-sm whitespace-pre-wrap leading-relaxed font-sans">{results.facebook}</p></div>
+              <div className="p-4">
+                <textarea 
+                  value={results.facebook}
+                  onChange={(e) => handleResultEdit('facebook', e.target.value)}
+                  className="w-full h-48 p-2 bg-transparent text-gray-800 dark:text-gray-200 text-sm whitespace-pre-wrap leading-relaxed font-sans resize-y outline-none focus:ring-2 focus:ring-blue-500/50 rounded-md"
+                />
+              </div>
             </div>
           )}
           
@@ -283,9 +296,15 @@ export default function Dashboard({ session, profile }) {
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-700">
               <div className="bg-black px-4 py-2 flex justify-between items-center">
                 <span className="text-white font-bold text-sm">X (Twitter)</span>
-                <button onClick={() => navigator.clipboard.writeText(results.twitter)} className="text-white text-xs hover:underline opacity-80">Copier</button>
+                <button onClick={() => navigator.clipboard.writeText(results.twitter)} className="text-white text-xs hover:underline opacity-90 font-medium">COPIER</button>
               </div>
-              <div className="p-6"><p className="text-gray-800 dark:text-gray-200 text-sm whitespace-pre-wrap leading-relaxed font-sans">{results.twitter}</p></div>
+              <div className="p-4">
+                <textarea 
+                  value={results.twitter}
+                  onChange={(e) => handleResultEdit('twitter', e.target.value)}
+                  className="w-full h-32 p-2 bg-transparent text-gray-800 dark:text-gray-200 text-sm whitespace-pre-wrap leading-relaxed font-sans resize-y outline-none focus:ring-2 focus:ring-gray-500/50 rounded-md"
+                />
+              </div>
             </div>
           )}
 
@@ -293,9 +312,15 @@ export default function Dashboard({ session, profile }) {
             <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-700">
               <div className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 px-4 py-2 flex justify-between items-center">
                 <span className="text-white font-bold text-sm">Instagram</span>
-                <button onClick={() => navigator.clipboard.writeText(results.instagram)} className="text-white text-xs hover:underline opacity-80">Copier</button>
+                <button onClick={() => navigator.clipboard.writeText(results.instagram)} className="text-white text-xs hover:underline opacity-90 font-medium">COPIER</button>
               </div>
-              <div className="p-6"><p className="text-gray-800 dark:text-gray-200 text-sm whitespace-pre-wrap leading-relaxed font-sans">{results.instagram}</p></div>
+              <div className="p-4">
+                <textarea 
+                  value={results.instagram}
+                  onChange={(e) => handleResultEdit('instagram', e.target.value)}
+                  className="w-full h-48 p-2 bg-transparent text-gray-800 dark:text-gray-200 text-sm whitespace-pre-wrap leading-relaxed font-sans resize-y outline-none focus:ring-2 focus:ring-pink-500/50 rounded-md"
+                />
+              </div>
             </div>
           )}
 
