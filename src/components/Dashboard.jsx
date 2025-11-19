@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
+import toast, { Toaster } from 'react-hot-toast'
 import ProfileSwitcher from './ProfileSwitcher'
 
 export default function Dashboard({ session, profile, onProfileUpdate }) {
@@ -6,9 +7,12 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
   const [preview, setPreview] = useState(null)
   const [description, setDescription] = useState('')
   const [loading, setLoading] = useState(false)
+  const [loadingStep, setLoadingStep] = useState('') // Pour les messages d'attente
   const [results, setResults] = useState(null)
   
-  // État pour les plateformes actives
+  // État pour savoir quel bouton "Copier" a été cliqué
+  const [copiedState, setCopiedState] = useState({})
+
   const [platforms, setPlatforms] = useState({
     linkedin: true,
     facebook: true,
@@ -16,19 +20,28 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
     instagram: true
   })
 
-  // Vérifie si au moins une plateforme est cochée
   const isAnyPlatformSelected = Object.values(platforms).some(Boolean)
 
   const togglePlatform = (key) => {
     setPlatforms(prev => ({ ...prev, [key]: !prev[key] }))
   }
 
-  // Fonction pour modifier le texte généré (Édition)
   const handleResultEdit = (platform, newText) => {
-    setResults(prev => ({
-      ...prev,
-      [platform]: newText
-    }))
+    setResults(prev => ({ ...prev, [platform]: newText }))
+  }
+
+  // Fonction de copie améliorée avec feedback visuel
+  const handleCopy = (text, platform) => {
+    navigator.clipboard.writeText(text)
+    toast.success('Texte copié !', { duration: 2000, position: 'bottom-center' })
+    
+    // Change l'état du bouton spécifiquement pour cette plateforme
+    setCopiedState(prev => ({ ...prev, [platform]: true }))
+    
+    // Remet le bouton à la normale après 2 secondes
+    setTimeout(() => {
+      setCopiedState(prev => ({ ...prev, [platform]: false }))
+    }, 2000)
   }
 
   const handleImageChange = (e) => {
@@ -37,10 +50,10 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
       setImage(file)
       setPreview(URL.createObjectURL(file))
       setResults(null)
+      toast.success('Photo ajoutée !', { icon: '📸' })
     }
   }
 
-  // Fonction de compression d'image (Optimisé pour Mobile)
   const compressImage = (file) => {
     return new Promise((resolve, reject) => {
       const reader = new FileReader()
@@ -50,7 +63,7 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
         img.src = event.target.result
         img.onload = () => {
           const canvas = document.createElement('canvas')
-          const MAX_WIDTH = 800 // Largeur max pour n8n/OpenAI
+          const MAX_WIDTH = 1000 // Légère augmentation qualité
           const scaleSize = MAX_WIDTH / img.width
           const newWidth = (scaleSize < 1) ? MAX_WIDTH : img.width
           const newHeight = (scaleSize < 1) ? (img.height * scaleSize) : img.height
@@ -59,9 +72,7 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
           canvas.height = newHeight
           const ctx = canvas.getContext('2d')
           ctx.drawImage(img, 0, 0, newWidth, newHeight)
-          
-          // Export en JPEG qualité 70%
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.7)
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.8)
           resolve(dataUrl)
         }
       }
@@ -70,19 +81,22 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
   }
 
   const handleGenerate = async (posture) => {
-    if (!image) return alert("Veuillez d'abord choisir une image !")
-    if (!isAnyPlatformSelected) return alert("Sélectionnez au moins une plateforme !")
+    if (!image) return toast.error("Il faut d'abord une photo !")
+    if (!isAnyPlatformSelected) return toast.error("Sélectionnez au moins un réseau !")
 
     const activePlatforms = Object.keys(platforms).filter(k => platforms[k])
 
     setLoading(true)
     setResults(null)
-
+    
+    // Séquence d'animation de chargement
+    setLoadingStep("Compression de l'image...")
+    
     try {
-      // 1. Compression de l'image
       const base64Image = await compressImage(image)
       
-      // 2. Envoi à n8n
+      setLoadingStep("Analyse de la scène par l'IA...")
+      
       const response = await fetch(import.meta.env.VITE_N8N_WEBHOOK_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -95,254 +109,185 @@ export default function Dashboard({ session, profile, onProfileUpdate }) {
         })
       })
 
-      // 3. Traitement de la réponse
+      setLoadingStep("Rédaction des posts...")
+
       const result = await response.json()
       let content = result.data
 
-      // Nettoyage du JSON si reçu en string
       if (typeof content === 'string') {
         content = content.replace(/```json/g, '').replace(/```/g, '')
-        try { content = JSON.parse(content) } catch (e) { console.error("Erreur parsing JSON", e) }
+        try { content = JSON.parse(content) } catch (e) { console.error(e) }
       }
       
       setResults(content)
+      toast.success("C'est prêt !", { duration: 4000, icon: '✨' })
+      
+      // Scroll automatique vers les résultats
+      setTimeout(() => {
+        document.getElementById('results-section')?.scrollIntoView({ behavior: 'smooth' })
+      }, 100)
 
     } catch (error) {
       console.error(error)
-      alert("Erreur : L'image est peut-être trop lourde ou la connexion a échoué.")
+      toast.error("Oups, petit problème de connexion.")
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="w-full max-w-2xl mx-auto p-4 pb-20">
+    <div className="w-full max-w-2xl mx-auto p-4 pb-32">
+      {/* Système de notifications */}
+      <Toaster />
       
-      {/* En-tête avec Switcher d'identité */}
-      <div className="text-center mb-8 relative z-10">
-        <h2 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">Nouveau Post</h2>
-        <div className="flex justify-center items-center text-gray-500 dark:text-gray-400">
-          <span>Postez en tant que </span>
-          <span className="font-semibold text-blue-600 ml-1">{profile?.job_title || '...'}</span>
-          
-          {/* Composant pour changer de profil */}
-          <ProfileSwitcher 
-            session={session} 
-            currentProfile={profile} 
-            onUpdate={onProfileUpdate} 
-          />
+      {/* En-tête Compact */}
+      <div className="text-center mb-6 relative z-10">
+        <div className="flex justify-center items-center text-gray-600 dark:text-gray-300 text-sm">
+          <span>Profil actif : </span>
+          <span className="font-bold text-blue-600 ml-1 mr-2">{profile?.job_title || '...'}</span>
+          <ProfileSwitcher session={session} currentProfile={profile} onUpdate={onProfileUpdate} />
         </div>
-        <p className="text-xs text-gray-400 mt-1">{profile?.org_name}</p>
       </div>
 
-      {/* Zone Photo */}
-      <div className="mb-6">
+      {/* Zone Photo (Améliorée) */}
+      <div className="mb-6 transition-all duration-300">
         {!preview ? (
-          <label className="flex flex-col items-center justify-center w-full h-64 border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer bg-gray-50 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700 transition group">
+          <label className="flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-blue-200 dark:border-gray-700 rounded-2xl cursor-pointer bg-blue-50/50 dark:bg-gray-800/50 hover:bg-blue-50 dark:hover:bg-gray-800 transition active:scale-95">
             <div className="flex flex-col items-center justify-center pt-5 pb-6">
-              <div className="p-4 bg-blue-50 dark:bg-blue-900/30 rounded-full mb-3 group-hover:scale-110 transition">
-                <span className="text-4xl">📸</span>
-              </div>
-              <p className="mb-2 text-sm text-gray-500 dark:text-gray-400 font-medium">Cliquez pour ajouter une photo</p>
+              <span className="text-4xl mb-2">📸</span>
+              <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">Ajouter une photo</p>
             </div>
             <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
           </label>
         ) : (
-          <div className="relative rounded-xl overflow-hidden shadow-lg border border-gray-200 dark:border-gray-700">
+          <div className="relative rounded-2xl overflow-hidden shadow-xl border border-gray-100 dark:border-gray-700 group">
             <img src={preview} alt="Preview" className="w-full h-64 object-cover" />
-            <button onClick={() => { setPreview(null); setImage(null); setResults(null); }} className="absolute top-3 right-3 bg-black/60 hover:bg-red-600 text-white p-2 rounded-full backdrop-blur-sm transition">✕</button>
+            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center space-x-4">
+               <label className="cursor-pointer bg-white text-black px-4 py-2 rounded-full font-bold text-sm hover:bg-gray-100 transform hover:scale-105 transition">
+                 Changer
+                 <input type="file" className="hidden" accept="image/*" onChange={handleImageChange} />
+               </label>
+               <button 
+                 onClick={() => { setPreview(null); setImage(null); setResults(null); }}
+                 className="bg-red-500 text-white px-4 py-2 rounded-full font-bold text-sm hover:bg-red-600 transform hover:scale-105 transition"
+               >
+                 Supprimer
+               </button>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Description / Contexte */}
+      {/* Description Rapide */}
       <div className="mb-6">
-        <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 ml-1">
-          Contexte (Optionnel)
-        </label>
         <textarea
           rows="2"
-          placeholder="Ex: Inauguration, victoire sportive..."
+          placeholder="Ajouter un contexte ? (ex: Victoire 3-0, Inauguration école...)"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          className="w-full px-4 py-3 rounded-xl bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 text-gray-900 dark:text-white focus:ring-2 focus:ring-blue-500 outline-none transition resize-none shadow-sm"
+          className="w-full px-4 py-3 rounded-xl bg-gray-50 dark:bg-gray-800 border-none focus:ring-2 focus:ring-blue-500/50 text-gray-900 dark:text-white placeholder-gray-400 resize-none shadow-inner text-sm transition"
         ></textarea>
       </div>
 
-      {/* Sélecteur de Plateformes */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-3 ml-1">
-          <label className="block text-sm font-medium text-gray-700 dark:text-gray-300">
-            Choisir les plateformes cibles
-          </label>
-          {!isAnyPlatformSelected && (
-            <span className="text-xs font-bold text-red-500 animate-pulse bg-red-100 dark:bg-red-900/30 px-2 py-1 rounded">
-              ⚠️ Sélectionnez au moins un réseau
-            </span>
-          )}
+      {/* Sélecteur de Plateformes (Pillules) */}
+      <div className="mb-8 overflow-x-auto pb-2 no-scrollbar">
+        <div className="flex gap-2">
+          {[
+            { id: 'linkedin', label: 'LinkedIn', color: 'bg-[#0077b5]' },
+            { id: 'facebook', label: 'Facebook', color: 'bg-[#1877f2]' },
+            { id: 'twitter', label: 'X (Twitter)', color: 'bg-black' },
+            { id: 'instagram', label: 'Insta', color: 'bg-pink-600' },
+          ].map((net) => (
+            <button 
+              key={net.id}
+              onClick={() => togglePlatform(net.id)}
+              className={`px-4 py-2 rounded-full text-xs font-bold transition whitespace-nowrap flex items-center border ${
+                platforms[net.id] 
+                  ? `${net.color} text-white border-transparent shadow-md transform scale-105` 
+                  : 'bg-white dark:bg-gray-800 text-gray-400 border-gray-200 dark:border-gray-700'
+              }`}
+            >
+              {platforms[net.id] && <span className="mr-1">✓</span>}
+              {net.label}
+            </button>
+          ))}
         </div>
-
-        <div className="flex flex-wrap gap-3">
-          <button 
-            onClick={() => togglePlatform('linkedin')}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition border flex items-center space-x-2 ${platforms.linkedin ? 'bg-[#0077b5] text-white border-transparent shadow-md' : 'bg-white dark:bg-gray-800 text-gray-400 border-gray-300 dark:border-gray-600 grayscale opacity-60'}`}
-          >
-            <span>LinkedIn</span>{platforms.linkedin && <span>✓</span>}
-          </button>
-
-          <button 
-            onClick={() => togglePlatform('facebook')}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition border flex items-center space-x-2 ${platforms.facebook ? 'bg-[#1877f2] text-white border-transparent shadow-md' : 'bg-white dark:bg-gray-800 text-gray-400 border-gray-300 dark:border-gray-600 grayscale opacity-60'}`}
-          >
-            <span>Facebook</span>{platforms.facebook && <span>✓</span>}
-          </button>
-
-          <button 
-            onClick={() => togglePlatform('twitter')}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition border flex items-center space-x-2 ${platforms.twitter ? 'bg-black text-white border-transparent shadow-md' : 'bg-white dark:bg-gray-800 text-gray-400 border-gray-300 dark:border-gray-600 grayscale opacity-60'}`}
-          >
-            <span>X (Twitter)</span>{platforms.twitter && <span>✓</span>}
-          </button>
-
-          <button 
-            onClick={() => togglePlatform('instagram')}
-            className={`px-4 py-2 rounded-full text-sm font-medium transition border flex items-center space-x-2 ${platforms.instagram ? 'bg-gradient-to-r from-purple-500 to-orange-500 text-white border-transparent shadow-md' : 'bg-white dark:bg-gray-800 text-gray-400 border-gray-300 dark:border-gray-600 grayscale opacity-60'}`}
-          >
-            <span>Instagram</span>{platforms.instagram && <span>✓</span>}
-          </button>
-        </div>
+        {!isAnyPlatformSelected && <p className="text-xs text-red-500 mt-2 font-medium">Sélectionnez au moins un réseau.</p>}
       </div>
 
-      {/* Boutons Postures */}
-      <div className="grid grid-cols-1 gap-4 mb-10">
-        <button 
-          onClick={() => handleGenerate('incarné')} 
-          disabled={loading || !image || !isAnyPlatformSelected} 
-          className="group relative bg-white dark:bg-gray-800 hover:border-blue-500 border-2 border-transparent p-4 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-left"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="bg-blue-100 dark:bg-blue-900 text-blue-600 dark:text-blue-300 p-3 rounded-lg text-xl">👤</div>
-              <div><h3 className="font-bold text-gray-900 dark:text-white">L'Incarné (Je)</h3><p className="text-xs text-gray-500">Parlez avec votre cœur.</p></div>
+      {/* Boutons Postures (Sticky Bottom sur mobile si besoin, ici version standard) */}
+      <div className="grid grid-cols-1 gap-3 mb-8">
+        {[
+          { id: 'incarné', icon: '👤', title: "L'Incarné (Je)", desc: "Personnel & Authentique", color: "hover:border-blue-500" },
+          { id: 'institution', icon: '🏛️', title: "L'Institution (Nous)", desc: "Officiel & Fédérateur", color: "hover:border-indigo-500" },
+          { id: 'visionnaire', icon: '🚀', title: "Le Visionnaire (Futur)", desc: "Inspirant & Dynamique", color: "hover:border-purple-500" },
+        ].map((pos) => (
+          <button 
+            key={pos.id}
+            onClick={() => handleGenerate(pos.id)} 
+            disabled={loading || !image || !isAnyPlatformSelected} 
+            className={`relative bg-white dark:bg-gray-800 border-2 border-transparent ${pos.color} p-4 rounded-2xl shadow-sm transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-left flex items-center justify-between`}
+          >
+            <div className="flex items-center gap-4">
+              <div className="text-2xl bg-gray-100 dark:bg-gray-700 p-2 rounded-lg">{pos.icon}</div>
+              <div>
+                <h3 className="font-bold text-gray-900 dark:text-white text-sm">{pos.title}</h3>
+                <p className="text-xs text-gray-500">{pos.desc}</p>
+              </div>
             </div>
-            <div className="text-gray-300 group-hover:text-blue-500 transition">➔</div>
-          </div>
-        </button>
-
-        <button 
-          onClick={() => handleGenerate('institution')} 
-          disabled={loading || !image || !isAnyPlatformSelected} 
-          className="group relative bg-white dark:bg-gray-800 hover:border-indigo-500 border-2 border-transparent p-4 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-left"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="bg-indigo-100 dark:bg-indigo-900 text-indigo-600 dark:text-indigo-300 p-3 rounded-lg text-xl">🏛️</div>
-              <div><h3 className="font-bold text-gray-900 dark:text-white">L'Institution (Nous)</h3><p className="text-xs text-gray-500">La voix officielle.</p></div>
-            </div>
-            <div className="text-gray-300 group-hover:text-indigo-500 transition">➔</div>
-          </div>
-        </button>
-
-        <button 
-          onClick={() => handleGenerate('visionnaire')} 
-          disabled={loading || !image || !isAnyPlatformSelected} 
-          className="group relative bg-white dark:bg-gray-800 hover:border-purple-500 border-2 border-transparent p-4 rounded-xl shadow-md transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed text-left"
-        >
-          <div className="flex items-center justify-between">
-            <div className="flex items-center space-x-4">
-              <div className="bg-purple-100 dark:bg-purple-900 text-purple-600 dark:text-purple-300 p-3 rounded-lg text-xl">🚀</div>
-              <div><h3 className="font-bold text-gray-900 dark:text-white">Le Visionnaire (Futur)</h3><p className="text-xs text-gray-500">Inspirez et projetez.</p></div>
-            </div>
-            <div className="text-gray-300 group-hover:text-purple-500 transition">➔</div>
-          </div>
-        </button>
+            <div className="text-gray-300">➔</div>
+          </button>
+        ))}
       </div>
 
-      {/* Indicateur de Chargement */}
+      {/* Indicateur de Chargement Ludique */}
       {loading && (
-        <div className="text-center py-8 animate-pulse">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-4 border-blue-600 border-t-transparent mb-4"></div>
-          <p className="text-gray-600 dark:text-gray-300 font-medium">L'IA analyse votre image...</p>
+        <div className="fixed inset-0 bg-white/80 dark:bg-gray-900/80 backdrop-blur-sm flex flex-col items-center justify-center z-50">
+          <div className="animate-spin text-4xl mb-4">✨</div>
+          <p className="text-gray-800 dark:text-white font-bold animate-pulse">{loadingStep}</p>
         </div>
       )}
 
-      {/* Résultats Éditables */}
+      {/* Résultats */}
       {results && typeof results === 'object' && (
-        <div className="space-y-8 animate-fade-in-up">
-          <div className="flex items-center space-x-2 mb-4">
-            <span className="text-2xl">✨</span>
-            <h3 className="text-xl font-bold text-gray-900 dark:text-white">Vos brouillons sont prêts</h3>
-          </div>
+        <div id="results-section" className="space-y-6 animate-fade-in-up pt-4 border-t border-gray-200 dark:border-gray-800">
+          <h3 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-2">
+            <span>✍️</span> Vos brouillons
+          </h3>
           
-          {platforms.linkedin && results.linkedin && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-700">
-              <div className="bg-[#0077b5] px-4 py-2 flex justify-between items-center">
-                <span className="text-white font-bold text-sm">LinkedIn</span>
-                <button onClick={() => navigator.clipboard.writeText(results.linkedin)} className="text-white text-xs hover:underline opacity-90 font-medium">COPIER</button>
+          {Object.entries(results).map(([key, val]) => (
+            platforms[key] && val && (
+              <div key={key} className="bg-white dark:bg-gray-800 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-700 overflow-hidden">
+                <div className={`px-4 py-3 flex justify-between items-center ${
+                  key === 'linkedin' ? 'bg-[#0077b5]' : 
+                  key === 'facebook' ? 'bg-[#1877f2]' : 
+                  key === 'twitter' ? 'bg-black' : 
+                  'bg-gradient-to-r from-purple-500 to-pink-500'
+                }`}>
+                  <span className="text-white font-bold text-sm capitalize">{key}</span>
+                  <button 
+                    onClick={() => handleCopy(val, key)}
+                    className={`text-xs font-bold px-3 py-1 rounded-full transition ${
+                      copiedState[key] 
+                        ? 'bg-green-500 text-white scale-105' 
+                        : 'bg-white/20 text-white hover:bg-white/30'
+                    }`}
+                  >
+                    {copiedState[key] ? '✓ COPIÉ' : 'COPIER'}
+                  </button>
+                </div>
+                <div className="p-0">
+                  <textarea 
+                    value={val}
+                    onChange={(e) => handleResultEdit(key, e.target.value)}
+                    className="w-full h-40 p-4 bg-transparent text-gray-800 dark:text-gray-200 text-sm leading-relaxed resize-y outline-none focus:bg-gray-50 dark:focus:bg-gray-700/50 transition"
+                  />
+                </div>
               </div>
-              <div className="p-4">
-                <textarea 
-                  value={results.linkedin}
-                  onChange={(e) => handleResultEdit('linkedin', e.target.value)}
-                  className="w-full h-48 p-2 bg-transparent text-gray-800 dark:text-gray-200 text-sm whitespace-pre-wrap leading-relaxed font-sans resize-y outline-none focus:ring-2 focus:ring-blue-500/50 rounded-md"
-                />
-              </div>
-            </div>
-          )}
+            )
+          ))}
 
-          {platforms.facebook && results.facebook && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-700">
-              <div className="bg-[#1877f2] px-4 py-2 flex justify-between items-center">
-                <span className="text-white font-bold text-sm">Facebook</span>
-                <button onClick={() => navigator.clipboard.writeText(results.facebook)} className="text-white text-xs hover:underline opacity-90 font-medium">COPIER</button>
-              </div>
-              <div className="p-4">
-                <textarea 
-                  value={results.facebook}
-                  onChange={(e) => handleResultEdit('facebook', e.target.value)}
-                  className="w-full h-48 p-2 bg-transparent text-gray-800 dark:text-gray-200 text-sm whitespace-pre-wrap leading-relaxed font-sans resize-y outline-none focus:ring-2 focus:ring-blue-500/50 rounded-md"
-                />
-              </div>
-            </div>
-          )}
-          
-          {platforms.twitter && results.twitter && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-700">
-              <div className="bg-black px-4 py-2 flex justify-between items-center">
-                <span className="text-white font-bold text-sm">X (Twitter)</span>
-                <button onClick={() => navigator.clipboard.writeText(results.twitter)} className="text-white text-xs hover:underline opacity-90 font-medium">COPIER</button>
-              </div>
-              <div className="p-4">
-                <textarea 
-                  value={results.twitter}
-                  onChange={(e) => handleResultEdit('twitter', e.target.value)}
-                  className="w-full h-32 p-2 bg-transparent text-gray-800 dark:text-gray-200 text-sm whitespace-pre-wrap leading-relaxed font-sans resize-y outline-none focus:ring-2 focus:ring-gray-500/50 rounded-md"
-                />
-              </div>
-            </div>
-          )}
-
-          {platforms.instagram && results.instagram && (
-            <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg overflow-hidden border border-gray-100 dark:border-gray-700">
-              <div className="bg-gradient-to-r from-purple-500 via-pink-500 to-orange-500 px-4 py-2 flex justify-between items-center">
-                <span className="text-white font-bold text-sm">Instagram</span>
-                <button onClick={() => navigator.clipboard.writeText(results.instagram)} className="text-white text-xs hover:underline opacity-90 font-medium">COPIER</button>
-              </div>
-              <div className="p-4">
-                <textarea 
-                  value={results.instagram}
-                  onChange={(e) => handleResultEdit('instagram', e.target.value)}
-                  className="w-full h-48 p-2 bg-transparent text-gray-800 dark:text-gray-200 text-sm whitespace-pre-wrap leading-relaxed font-sans resize-y outline-none focus:ring-2 focus:ring-pink-500/50 rounded-md"
-                />
-              </div>
-            </div>
-          )}
-
-           <div className="mt-12 text-center">
-            <button onClick={() => { setResults(null); setImage(null); setPreview(null); setDescription(''); window.scrollTo({ top: 0, behavior: 'smooth' }); }} className="text-gray-500 hover:text-blue-600 font-medium flex items-center justify-center mx-auto space-x-2">
-              <span>🔄</span><span>Générer un autre post</span>
-            </button>
-          </div>
+           <div className="h-8"></div> {/* Espace vide en bas */}
         </div>
       )}
     </div>
