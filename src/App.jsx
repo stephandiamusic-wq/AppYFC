@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
 import { supabase } from './supabaseClient'
+import { Toaster } from 'react-hot-toast'
 import Login from './components/Login'
 import Onboarding from './components/Onboarding'
 import Dashboard from './components/Dashboard'
@@ -93,8 +94,9 @@ function App() {
       </div>
 
       {/* Le cœur de l'application */}
-      <Dashboard session={session} profile={profile} />
-
+      {/* Le cœur de l'application */}
+      <Dashboard session={session} profile={profile} onProfileUpdate={() => fetchProfile(session.user.id)} />
+      <Toaster position="bottom-center" />
     </div>
   )
 }
