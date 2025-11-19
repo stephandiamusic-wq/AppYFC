@@ -91,16 +91,35 @@ export default function ProfileSwitcher({ session, currentProfile, onUpdate }) {
             {/* LE DÉCLENCHEUR (Bouton visible sur le Dashboard) */}
             <button
                 onClick={() => setIsOpen(true)}
-                className="flex items-center gap-2 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-700 rounded-full px-4 py-2 shadow-sm hover:shadow-md transition active:scale-95 group ml-2"
+                className="group relative flex items-center gap-3 bg-white/80 dark:bg-gray-800/80 backdrop-blur-md border border-white/20 dark:border-gray-700/50 rounded-2xl px-5 py-2.5 shadow-lg hover:shadow-xl transition-all duration-300 hover:-translate-y-0.5 active:translate-y-0 active:shadow-md ml-2 overflow-hidden"
             >
-                <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
-                <div className="text-left leading-tight">
-                    <div className="text-xs text-gray-400 uppercase font-bold tracking-wider">Actif</div>
-                    <div className="text-sm font-bold text-blue-600 dark:text-blue-400 group-hover:underline decoration-blue-300 underline-offset-2">
-                        {currentProfile?.job_title || 'Configurer'}
-                    </div>
+                {/* Effet de brillance au survol */}
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent -translate-x-full group-hover:animate-shimmer"></div>
+
+                {/* Indicateur de statut */}
+                <div className="relative flex h-3 w-3">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-3 w-3 bg-gradient-to-br from-green-400 to-green-600 shadow-sm"></span>
                 </div>
-                <span className="text-gray-400 text-xs ml-1">▼</span>
+
+                <div className="text-left flex flex-col">
+                    <span className="text-[10px] uppercase tracking-widest font-bold text-gray-400 dark:text-gray-500 group-hover:text-blue-500 transition-colors">
+                        Poste en tant que
+                    </span>
+                    <span className="text-sm font-bold text-gray-800 dark:text-white group-hover:text-blue-600 dark:group-hover:text-blue-400 transition-colors leading-tight">
+                        {currentProfile?.job_title || 'Configurer'}
+                    </span>
+                </div>
+
+                {/* Chevron animé */}
+                <svg
+                    className="w-4 h-4 text-gray-400 group-hover:text-blue-500 transition-transform duration-300 group-hover:rotate-180"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M19 9l-7 7-7-7" />
+                </svg>
             </button>
 
             {/* LA MODALE (Fenêtre surgissante) */}
@@ -132,8 +151,8 @@ export default function ProfileSwitcher({ session, currentProfile, onUpdate }) {
                                                 key={id.id}
                                                 onClick={() => handleSwitch(id)}
                                                 className={`relative group flex items-center justify-between p-3 rounded-xl cursor-pointer border-2 transition-all ${isActive
-                                                        ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
-                                                        : 'border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
+                                                    ? 'border-blue-500 bg-blue-50 dark:bg-blue-900/20'
+                                                    : 'border-transparent hover:border-gray-200 dark:hover:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-800'
                                                     }`}
                                             >
                                                 <div>
