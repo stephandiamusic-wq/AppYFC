@@ -97,23 +97,13 @@ export default function ProfileSwitcher({ session, currentProfile, onUpdate }) {
         <>
             {/* LE DÉCLENCHEUR (Bouton visible sur le Dashboard) */}
             {/* LE DÉCLENCHEUR (Barre d'outils) */}
+            {/* LE DÉCLENCHEUR (Barre d'outils) */}
             <div className="flex items-center gap-2 bg-white/10 backdrop-blur-md border border-white/20 rounded-2xl p-1 shadow-lg hover:shadow-pink-500/20 transition-all duration-300">
-
-                {/* Bouton GAUCHE : Menu / Liste */}
-                <button
-                    onClick={() => { setShowCreate(false); setIsOpen(true); }}
-                    className="p-3 rounded-xl text-blue-200 hover:text-white hover:bg-white/10 transition"
-                    title="Gérer les profils"
-                >
-                    <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h7" />
-                    </svg>
-                </button>
 
                 {/* Bouton CENTRAL : Profil Actuel */}
                 <button
                     onClick={() => { setShowCreate(false); setIsOpen(true); }}
-                    className="flex flex-col items-start px-4 py-1 border-l border-r border-white/10 hover:bg-white/5 transition"
+                    className="flex flex-col items-start px-4 py-2 rounded-xl hover:bg-white/5 transition"
                 >
                     <div className="flex items-center gap-2 mb-0.5">
                         <span className="relative flex h-2 w-2">
@@ -133,6 +123,9 @@ export default function ProfileSwitcher({ session, currentProfile, onUpdate }) {
                         </svg>
                     </div>
                 </button>
+
+                {/* Séparateur vertical discret */}
+                <div className="w-px h-8 bg-white/10"></div>
 
                 {/* Bouton DROIT : Ajouter (+) */}
                 <button
